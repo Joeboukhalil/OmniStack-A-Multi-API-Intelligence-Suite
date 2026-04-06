@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WordWise | Scholarly Dictionary</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --paper: #fffcf5; /* Antique paper tint */
+            --ink: #2c3e50;
+            --accent: #e67e22;
+            --border: #dcdde1;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Crimson Text', Georgia, serif; /* Serifs for a scholarly feel */
+            background-color: var(--paper);
+            color: var(--ink);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        header {
+            width: 100%;
+            padding: 50px 0 20px;
+            text-align: center;
+        }
+
+        h1 { font-size: 3rem; margin: 0; font-weight: 700; color: var(--ink); }
+        .subtitle { font-family: sans-serif; font-size: 12px; text-transform: uppercase; letter-spacing: 3px; opacity: 0.6; }
+
+        .search-container {
+            margin: 30px 0;
+            width: 90%;
+            max-width: 500px;
+            display: flex;
+            border-bottom: 2px solid var(--ink);
+        }
+
+        input {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            background: transparent;
+            font-size: 20px;
+            outline: none;
+            font-family: inherit;
+        }
+
+        button {
+            background: transparent;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 10px;
+            transition: 0.3s;
+        }
+
+        button:hover { color: var(--accent); }
+
+        #resultArea {
+            width: 90%;
+            max-width: 700px;
+            padding-bottom: 100px;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .word-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 15px;
+        }
+
+        .phonetic { font-family: sans-serif; color: var(--accent); font-size: 1.2rem; }
+        
+        .audio-btn {
+            background: var(--ink);
+            color: white;
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .meaning-box { margin-bottom: 30px; }
+        .part-of-speech { font-family: sans-serif; font-style: italic; font-weight: bold; color: #7f8c8d; margin-bottom: 10px; border-bottom: 1px solid #eee; display: inline-block; padding-right: 20px;}
+
+        ul { padding-left: 20px; }
+        li { margin-bottom: 15px; line-height: 1.6; font-size: 1.1rem; }
+        .example { color: #636e72; font-size: 0.95rem; display: block; margin-top: 5px; border-left: 3px solid var(--accent); padding-left: 10px; }
+
+        .loader { display: none; margin: 40px auto; font-size: 2rem; color: var(--ink); animation: spin 1s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        .error { text-align: center; color: #c0392b; font-family: sans-serif; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>WordWise</h1>
+    <div class="subtitle">The Universal Lexicon</div>
+</header>
+
+<div class="search-container">
+    <input type="text" id="wordInput" placeholder="Enter a word..." onkeypress="if(event.key==='Enter') lookupWord()">
+    <button onclick="lookupWord()"><i class="fas fa-search"></i></button>
+</div>
+
+<i class="fas fa-feather loader" id="loader"></i>
+<div id="resultArea"></div>
+
+<script>
+    async function lookupWord() {
+        const word = document.getElementById('wordInput').value.trim();
+        const area = document.getElementById('resultArea');
+        const loader = document.getElementById('loader');
+
+        if (!word) return;
+
+        area.innerHTML = "";
+        loader.style.display = "block";
+
+        try {
+            // THE PUBLIC API: dictionaryapi.dev
+            const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`);
+            
+            if (!res.ok) throw new Error("Word not found");
+            
+            const data = await res.json();
+            const entry = data[0];
+
+            loader.style.display = "none";
+
+            // Find phonetic audio
+            const audioObj = entry.phonetics.find(p => p.audio !== "");
+            const audioIcon = audioObj ? `<div class="audio-btn" onclick="new Audio('${audioObj.audio}').play()"><i class="fas fa-volume-up"></i></div>` : "";
+
+            let meaningsHTML = "";
+            entry.meanings.forEach(m => {
+                const definitions = m.definitions.slice(0, 3).map(d => `
+                    <li>
+                        ${d.definition}
+                        ${d.example ? `<span class="example">"${d.example}"</span>` : ""}
+                    </li>
+                `).join('');
+
+                meaningsHTML += `
+                    <div class="meaning-box">
+                        <div class="part-of-speech">${m.partOfSpeech}</div>
+                        <ul>${definitions}</ul>
+                    </div>
+                `;
+            });
+
+            area.innerHTML = `
+                <div class="word-header">
+                    <div>
+                        <h2 style="font-size: 2.5rem; margin:0;">${entry.word}</h2>
+                        <span class="phonetic">${entry.phonetic || ''}</span>
+                    </div>
+                    ${audioIcon}
+                </div>
+                ${meaningsHTML}
+            `;
+
+        } catch (err) {
+            loader.style.display = "none";
+            area.innerHTML = `<div class="error"><i class="fas fa-question-circle fa-2x"></i><p>Sorry, we couldn't find "${word}" in our records.</p></div>`;
+        }
+    }
+</script>
+
+</body>
+</html>
